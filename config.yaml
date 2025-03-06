@@ -35,14 +35,12 @@ keywords:
     category: "technical"
     importance: 6
 
+
 # اکانت‌های مورد پایش
 tracked_accounts:
-  - username: "manager_account"
+  - username: "HashemiSattar"  # مثال: حساب واقعی ایلان ماسک
     role: "manager"
     importance: 10
-  - username: "official_account"
-    role: "official"
-    importance: 8
 
 # تنظیمات تشخیص موج انتقادی
 wave_detection:

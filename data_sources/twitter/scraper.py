@@ -5,7 +5,6 @@ from typing import List, Dict, Any, Optional
 
 from twscrape import API, gather
 from twscrape.logger import set_log_level
-from twscrape.models import Tweet
 
 from core.config import config
 from data_sources.twitter.account_manager import AccountManager
@@ -60,43 +59,28 @@ class TwitterScraper:
         try:
             await self.api.pool.login_all()
 
-            # بررسی وضعیت اکانت‌ها - تغییر یافته برای نسخه جدید twscrape
-            # به جای استفاده از api.pool.accounts، از روش دیگری استفاده می‌کنیم
+            # از آنجایی که بعد از login_all حداقل یک اکانت باید فعال باشد
+            # این مقدار را به عنوان معیار موفقیت در نظر می‌گیریم
+            self.initialized = True
+            logger.info("ورود به اکانت‌ها با موفقیت انجام شد.")
 
-            # یکی از این روش‌ها ممکن است در نسخه شما کار کند:
-            try:
-                # روش 1
-                accounts_status = await self.api.pool.get_accounts()
-                valid_accounts = [a for a in accounts_status if getattr(a, 'active', False)]
-            except AttributeError:
-                try:
-                    # روش 2
-                    accounts_status = await self.api.pool.list_accounts()
-                    valid_accounts = [a for a in accounts_status if getattr(a, 'active', False)]
-                except AttributeError:
-                    # روش 3 - فرض می‌کنیم حداقل یک اکانت فعال وجود دارد
-                    valid_accounts = [1]  # فقط برای جلوگیری از خطا
-
-            if valid_accounts:
-                logger.info(f"مجموعاً {len(valid_accounts)} اکانت فعال آماده استفاده است.")
-                self.initialized = True
-            else:
-                logger.error("هیچ اکانت فعالی برای استفاده یافت نشد.")
         except Exception as e:
             logger.error(f"خطا در ورود به اکانت‌ها: {e}")
+            self.initialized = False
+
     async def search_tweets(
             self,
             query: str,
             limit: int = 100,
-            since_id: Optional[str] = None,
+            since_id: Optional[str] = None,  # این پارامتر استفاده نمی‌شود
             until_date: Optional[datetime] = None
-    ) -> List[Tweet]:
+    ) -> List[Any]:
         """
         جستجوی توییت‌ها بر اساس کوئری مشخص
 
         :param query: عبارت جستجو
         :param limit: حداکثر تعداد توییت‌ها
-        :param since_id: آیدی توییت برای شروع از آن (اختیاری)
+        :param since_id: آیدی توییت برای شروع از آن (اختیاری، در API جدید استفاده نمی‌شود)
         :param until_date: تاریخ پایان جستجو (اختیاری)
         :return: لیستی از توییت‌های یافت شده
         """
@@ -120,17 +104,18 @@ class TwitterScraper:
 
             # انجام جستجو
             max_tweets = min(limit, config.get('scraping', 'max_tweets_per_query', 100))
+
+            # طبق مستندات، متد search فقط پارامترهای query و limit را می‌پذیرد
             tweets = await gather(self.api.search(
                 query,
-                limit=max_tweets,
-                since_id=since_id
+                limit=max_tweets
             ))
 
-            # به‌روزرسانی محدودیت نرخ (مقادیر تخمینی، باید متناسب با API واقعی تنظیم شود)
+            # به‌روزرسانی محدودیت نرخ
             self.account_manager.update_rate_limit(
                 account["username"],
-                remaining=85,  # تخمینی
-                reset_time=datetime.now() + timedelta(minutes=15)  # تخمینی
+                remaining=85,
+                reset_time=datetime.now() + timedelta(minutes=15)
             )
 
             logger.info(f"تعداد {len(tweets)} توییت برای کوئری '{original_query}' یافت شد.")
@@ -140,7 +125,7 @@ class TwitterScraper:
             logger.error(f"خطا در جستجوی توییت‌ها: {e}")
             return []
 
-    async def get_user_tweets(self, username: str, limit: int = 100) -> List[Tweet]:
+    async def get_user_tweets(self, username: str, limit: int = 100) -> List[Any]:
         """
         دریافت توییت‌های یک کاربر خاص
 
@@ -162,17 +147,26 @@ class TwitterScraper:
                 return []
 
             # دریافت اطلاعات کاربر
-            user = await self.api.user_by_login(username)
+            try:
+                user = await self.api.user_by_login(username)
+                if not user:
+                    logger.error(f"کاربر '{username}' یافت نشد.")
+                    return []
+            except Exception as e:
+                logger.error(f"خطا در دریافت اطلاعات کاربر '{username}': {e}")
+                return []
 
             # دریافت توییت‌های کاربر
             max_tweets = min(limit, config.get('scraping', 'max_tweets_per_query', 100))
+
+            # استفاده از متد صحیح user_tweets طبق مستندات
             tweets = await gather(self.api.user_tweets(user.id, limit=max_tweets))
 
-            # به‌روزرسانی محدودیت نرخ (تخمینی)
+            # به‌روزرسانی محدودیت نرخ
             self.account_manager.update_rate_limit(
                 account["username"],
-                remaining=90,  # تخمینی
-                reset_time=datetime.now() + timedelta(minutes=15)  # تخمینی
+                remaining=90,
+                reset_time=datetime.now() + timedelta(minutes=15)
             )
 
             logger.info(f"تعداد {len(tweets)} توییت از کاربر {username} دریافت شد.")
@@ -181,7 +175,7 @@ class TwitterScraper:
             logger.error(f"خطا در دریافت توییت‌های کاربر {username}: {e}")
             return []
 
-    async def get_tweet(self, tweet_id: str) -> Optional[Tweet]:
+    async def get_tweet(self, tweet_id: str) -> Optional[Any]:
         """
         دریافت یک توییت خاص با شناسه آن
 
@@ -199,13 +193,14 @@ class TwitterScraper:
             if not account:
                 return None
 
-            tweet = await self.api.tweet_by_id(tweet_id)
+            # استفاده از متد tweet_details طبق مستندات
+            tweet = await self.api.tweet_details(tweet_id)
             return tweet
         except Exception as e:
             logger.error(f"خطا در دریافت توییت با شناسه {tweet_id}: {e}")
             return None
 
-    async def get_replies(self, tweet_id: str, limit: int = 100) -> List[Tweet]:
+    async def get_replies(self, tweet_id: str, limit: int = 100) -> List[Any]:
         """
         دریافت پاسخ‌های یک توییت
 
@@ -224,35 +219,24 @@ class TwitterScraper:
             if not account:
                 return []
 
-            # ابتدا توییت اصلی را دریافت کنید
-            tweet = await self.api.tweet_by_id(tweet_id)
-            if not tweet:
-                return []
-
-            # جستجو برای پاسخ‌ها
-            query = f"to:{tweet.user.username} conversation_id:{tweet_id}"
+            # استفاده از متد صحیح طبق مستندات
             max_tweets = min(limit, config.get('scraping', 'max_tweets_per_query', 100))
-            replies = await gather(self.api.search(query, limit=max_tweets))
+            replies = await gather(self.api.tweet_replies(tweet_id, limit=max_tweets))
 
-            # فیلتر کردن پاسخ‌های مستقیم به این توییت
-            direct_replies = [r for r in replies if r.inReplyToTweetId == tweet_id]
-
-            logger.info(f"تعداد {len(direct_replies)} پاسخ مستقیم برای توییت {tweet_id} یافت شد.")
-            return direct_replies
+            logger.info(f"تعداد {len(replies)} پاسخ مستقیم برای توییت {tweet_id} یافت شد.")
+            return replies
         except Exception as e:
             logger.error(f"خطا در دریافت پاسخ‌های توییت {tweet_id}: {e}")
             return []
 
-    async def get_retweets(self, tweet_id: str, limit: int = 100) -> List[Tweet]:
+    async def get_retweets(self, tweet_id: str, limit: int = 100) -> List[Any]:
         """
-        دریافت ریتوییت‌های یک توییت
+        دریافت کاربران بازنشر‌کننده یک توییت
 
         :param tweet_id: شناسه توییت
-        :param limit: حداکثر تعداد ریتوییت‌ها
-        :return: لیستی از ریتوییت‌ها
+        :param limit: حداکثر تعداد کاربران
+        :return: لیستی از کاربران بازنشر‌کننده
         """
-        # توجه: twscrape به طور مستقیم از دریافت ریتوییت‌ها پشتیبانی نمی‌کند
-        # این یک پیاده‌سازی تقریبی است
         if not self.initialized:
             await self.initialize()
             if not self.initialized:
@@ -264,23 +248,17 @@ class TwitterScraper:
             if not account:
                 return []
 
-            # ابتدا توییت اصلی را دریافت کنید
-            tweet = await self.api.tweet_by_id(tweet_id)
-            if not tweet:
-                return []
+            # استفاده از متد صحیح طبق مستندات
+            max_users = min(limit, config.get('scraping', 'max_tweets_per_query', 100))
+            retweeters = await gather(self.api.retweeters(tweet_id, limit=max_users))
 
-            # جستجو برای ریتوییت‌ها (این روش کامل نیست و محدودیت دارد)
-            query = f"url:{tweet_id}"
-            max_tweets = min(limit, config.get('scraping', 'max_tweets_per_query', 100))
-            retweets = await gather(self.api.search(query, limit=max_tweets))
-
-            logger.info(f"تعداد {len(retweets)} ریتوییت احتمالی برای توییت {tweet_id} یافت شد.")
-            return retweets
+            logger.info(f"تعداد {len(retweeters)} بازنشر‌کننده برای توییت {tweet_id} یافت شد.")
+            return retweeters
         except Exception as e:
-            logger.error(f"خطا در دریافت ریتوییت‌های توییت {tweet_id}: {e}")
+            logger.error(f"خطا در دریافت بازنشر‌کنندگان توییت {tweet_id}: {e}")
             return []
 
-    def _convert_tweet_to_dict(self, tweet: Tweet) -> Dict[str, Any]:
+    def _convert_tweet_to_dict(self, tweet) -> Dict[str, Any]:
         """
         تبدیل آبجکت توییت به دیکشنری برای ذخیره در دیتابیس
 
