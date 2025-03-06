@@ -1,0 +1,63 @@
+# تنظیمات عمومی
+general:
+  log_level: INFO
+  timezone: Asia/Tehran
+
+# تنظیمات دیتابیس
+database:
+  type: sqlite
+  name: twitter_monitor
+  connection_string: sqlite:///twitter_monitor.db  # استفاده از SQLite
+  # connection_string: sqlite:///twitter_monitor.db  # برای SQLite
+
+# تنظیمات استخراج داده
+scraping:
+  max_tweets_per_query: 100
+  # بازه‌های زمانی به ثانیه
+  default_interval: 1200  # 20 دقیقه
+  critical_interval: 300  # 5 دقیقه
+  archive_interval: 3600  # 1 ساعت
+  # محدودیت‌های درخواست
+  max_requests_per_hour: 300
+
+# کلمات کلیدی مورد پایش
+keywords:
+  - text: "فیلترینگ"
+    category: "technical"
+    importance: 8
+  - text: "رفع فیلتر یوتیوب"
+    category: "technical"
+    importance: 9
+  - text: "اختلال اینترنت"
+    category: "technical"
+    importance: 7
+  - text: "سرعت اینترنت"
+    category: "technical"
+    importance: 6
+
+# اکانت‌های مورد پایش
+tracked_accounts:
+  - username: "manager_account"
+    role: "manager"
+    importance: 10
+  - username: "official_account"
+    role: "official"
+    importance: 8
+
+# تنظیمات تشخیص موج انتقادی
+wave_detection:
+  min_tweets: 50  # حداقل تعداد توییت برای تشخیص موج
+  growth_threshold: 2.0  # ضریب رشد (چند برابر روز قبل)
+  time_window: 3600  # بازه زمانی بررسی (ثانیه)
+  negative_sentiment_threshold: 0.6  # آستانه احساس منفی
+
+# تنظیمات گزارش‌دهی
+reporting:
+  telegram:
+    token: "YOUR_TELEGRAM_BOT_TOKEN"
+    chat_id: "YOUR_CHAT_ID"
+  daily_report_time: "08:00"
+  weekly_report_day: "Monday"
+  weekly_report_time: "09:00"
+  # تنظیمات هشدار
+  alert_cooldown: 1800  # حداقل فاصله بین دو هشدار (ثانیه)

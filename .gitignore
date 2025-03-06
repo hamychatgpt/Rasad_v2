@@ -1,0 +1,22 @@
+# پوشه‌های محیط مجازی
+venv/
+.venv/
+env/
+ENV/
+
+# کش پایتون
+__pycache__/
+*.py[cod]
+*$py.class
+
+# توکن‌ها و اطلاعات حساس
+.env
+accounts.json
+
+# فایل‌های دیتابیس محلی
+*.db
+*.sqlite3
+
+# فایل‌های لاگ
+logs/
+*.log

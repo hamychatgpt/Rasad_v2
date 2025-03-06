@@ -1,0 +1,22 @@
+# Twitter data extraction
+twscrape==0.15.0
+httpx>=0.24.1
+snscrape>=0.6.2
+
+# Database
+SQLAlchemy>=2.0.19
+alembic>=1.11.2
+psycopg2-binary>=2.9.7
+pymongo>=4.5.0
+
+# Text processing and sentiment analysis
+hazm>=0.7.0
+transformers>=4.30.2
+
+# Utilities
+python-telegram-bot>=20.4
+pandas>=2.0.3
+numpy>=1.25.2
+pyyaml>=6.0.1
+python-dotenv>=1.0.0
+rich>=13.5.2
